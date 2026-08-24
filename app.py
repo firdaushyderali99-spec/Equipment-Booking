@@ -75,6 +75,25 @@ def calculate_end_date(booking_date, duration):
     return booking_date
 
 
+def suggest_equipment(df, category, load_weight):
+    """Suggest equipment type and unit based on category and load weight."""
+    available = df[df['Equipment_Category'] == category].copy()
+
+    if 'Ton_Capacity' in available.columns and load_weight > 0:
+        # Filter equipment that can handle the weight (with 20% safety margin)
+        suitable = available[available['Ton_Capacity'] >= load_weight * 1.2]
+        if suitable.empty:
+            suitable = available[available['Ton_Capacity'] >= load_weight]
+        if suitable.empty:
+            suitable = available
+    else:
+        suitable = available
+
+    # Get unique types and units
+    suggested_types = sorted(suitable['Equipment_Type'].unique().tolist())
+    return suitable, suggested_types
+
+
 def detect_conflicts(df, new_booking):
     """Detect conflicts between a new booking and existing bookings."""
     new_start = pd.to_datetime(new_booking['Booking_Date'])
@@ -133,6 +152,8 @@ def resolve_conflict(new_booking, conflicts):
             'Conflicting_Booking': conflict['Booking_ID'],
             'Conflict_Equipment': conflict['Equipment_ID'],
             'Conflict_Priority': conflict['Priority'],
+            'Conflict_Project': conflict.get('Project', 'N/A'),
+            'Conflict_Lift_Item': conflict.get('Lift_Item', 'N/A'),
             'Conflict_Request_Date': conflict['Request_Date'],
             'Conflict_Booking_Date': conflict['Booking_Date'],
             'Conflict_Duration': conflict['Duration'],
@@ -211,7 +232,7 @@ with st.sidebar:
 
     page = st.radio(
         "Select Module",
-        ["📊 Dashboard", "📋 Booking Manager", "⚠️ Conflict Detector", "🤖 AI Booking", "📈 Analytics"],
+        ["📊 Dashboard", "📋 Booking Manager", "🤖 Booking", "📈 Analytics"],
         index=0
     )
 
@@ -228,6 +249,15 @@ except Exception as e:
     st.error(f"⚠️ Error loading data: {e}")
     st.info("Please ensure 'Equipment_Bookings_AI_Training.xlsx' is in the repo root.")
     st.stop()
+
+# Load AI model
+with st.sidebar:
+    try:
+        model, encoders, accuracy, features, report = train_model(df)
+        st.success(f"🤖 AI Model: {accuracy*100:.1f}% accuracy")
+    except Exception as e:
+        model = None
+        st.warning("⚠️ AI model unavailable")
 
 # ============================================================
 # PAGE: DASHBOARD
@@ -325,217 +355,182 @@ elif page == "📋 Booking Manager":
 
 
 # ============================================================
-# PAGE: CONFLICT DETECTOR
+# PAGE: BOOKING (UNIFIED)
 # ============================================================
-elif page == "⚠️ Conflict Detector":
-    st.header("⚠️ Conflict Detection & Resolution")
-    st.markdown("Submit a new booking request to check for scheduling conflicts.")
+elif page == "🤖 Booking":
+    st.header("🤖 Equipment Booking")
+    st.markdown("Submit a booking request. AI will suggest equipment, detect conflicts, and help resolve them.")
 
     st.markdown("---")
 
-    col1, col2 = st.columns(2)
+    # --- BOOKING FORM ---
+    col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.subheader("📝 New Booking Request")
+        st.subheader("📝 Booking Details")
 
-        new_request_date = st.date_input("Request Date", datetime.now())
-        new_booking_date = st.date_input("Booking Date", datetime.now() + timedelta(days=3))
+        book_request_date = st.date_input("Request Date", datetime.now(), key='book_req')
+        book_booking_date = st.date_input("Booking Date", datetime.now() + timedelta(days=3), key='book_date')
 
-        equipment_categories = sorted(df['Equipment_Category'].unique().tolist())
-        new_category = st.selectbox("Equipment Category", equipment_categories)
+        book_project = st.selectbox("Project", sorted(df['Project'].unique()), key='book_proj')
+        book_lift_item = st.text_input("Lift Item / Description", "Steel Block Section", key='book_lift')
+        book_load_weight = st.number_input("Load Weight (Tonnes)", min_value=0.1, max_value=500.0, value=10.0, step=0.5, key='book_weight')
 
-        available_types = sorted(df[df['Equipment_Category'] == new_category]['Equipment_Type'].unique().tolist())
-        new_type = st.selectbox("Equipment Type", available_types)
+        book_category = st.selectbox("Equipment Category", sorted(df['Equipment_Category'].unique()), key='book_cat')
 
-        available_ids = sorted(df[df['Equipment_Type'] == new_type]['Equipment_ID'].unique().tolist())
-        new_equipment_id = st.selectbox("Equipment Unit", available_ids)
+        # AI suggests equipment based on category and weight
+        suitable_df, suggested_types = suggest_equipment(df, book_category, book_load_weight)
 
-        new_duration = st.selectbox("Duration", list(DURATION_MAP.keys()))
-        new_shift = st.selectbox("Shift", ['Day Shift (0700-1900)', 'Night Shift (1900-0700)'])
-        new_priority = st.selectbox("Priority", ['Low', 'Medium', 'High', 'Urgent'])
-        new_project = st.selectbox("Project", sorted(df['Project'].unique().tolist()))
+        if suggested_types:
+            st.markdown("💡 *AI Suggested equipment based on your load weight:*")
+            book_type = st.selectbox("Equipment Type (AI Suggested)", suggested_types, key='book_type')
 
-        available_locations = sorted(df['Location'].unique().tolist())
-        new_location = st.selectbox("Location", available_locations)
+            # Suggest unit based on type
+            suggested_units = sorted(suitable_df[suitable_df['Equipment_Type'] == book_type]['Equipment_ID'].unique().tolist())
+            if suggested_units:
+                # Show capacity info
+                unit_capacities = suitable_df[suitable_df['Equipment_Type'] == book_type][['Equipment_ID', 'Ton_Capacity']].drop_duplicates()
+                unit_options = []
+                for _, row in unit_capacities.iterrows():
+                    cap = f" ({row['Ton_Capacity']}T)" if pd.notna(row['Ton_Capacity']) else ""
+                    unit_options.append(f"{row['Equipment_ID']}{cap}")
 
-        new_lift_item = st.text_input("Lift Item", "Steel Block Section")
+                book_unit_display = st.selectbox("Equipment Unit (AI Suggested)", unit_options, key='book_unit')
+                book_id = book_unit_display.split(" (")[0]  # Extract ID without capacity
+            else:
+                book_id = st.selectbox("Equipment Unit", sorted(df[df['Equipment_Type'] == book_type]['Equipment_ID'].unique()), key='book_unit2')
+        else:
+            st.warning("⚠️ No suitable equipment found for this weight. Showing all options.")
+            all_types = sorted(df[df['Equipment_Category'] == book_category]['Equipment_Type'].unique())
+            book_type = st.selectbox("Equipment Type", all_types, key='book_type_all')
+            book_id = st.selectbox("Equipment Unit", sorted(df[df['Equipment_Type'] == book_type]['Equipment_ID'].unique()), key='book_unit_all')
+
+        book_duration = st.selectbox("Duration", list(DURATION_MAP.keys()), key='book_dur')
+        book_priority = st.selectbox("Priority", ['Low', 'Medium', 'High', 'Urgent'], key='book_pri')
+
+        book_locations = sorted(df['Location'].unique().tolist())
+        book_location = st.selectbox("Location", book_locations, key='book_loc')
 
     with col2:
-        st.subheader("🔍 Conflict Analysis")
+        st.subheader("🤖 AI Evaluation")
 
-        if st.button("🚀 Check for Conflicts", type="primary", use_container_width=True):
+        if st.button("📋 Submit Booking Request", type="primary", use_container_width=True):
+            # Build booking object
             new_booking = {
-                'Request_Date': new_request_date,
-                'Booking_Date': new_booking_date,
-                'Equipment_Category': new_category,
-                'Equipment_Type': new_type,
-                'Equipment_ID': new_equipment_id,
-                'Duration': new_duration,
-                'Shift': new_shift,
-                'Priority': new_priority,
-                'Project': new_project,
-                'Location': new_location,
-                'Lift_Item': new_lift_item,
+                'Request_Date': book_request_date,
+                'Booking_Date': book_booking_date,
+                'Equipment_Category': book_category,
+                'Equipment_Type': book_type,
+                'Equipment_ID': book_id,
+                'Duration': book_duration,
+                'Shift': 'Day Shift (0700-1900)',
+                'Priority': book_priority,
+                'Project': book_project,
+                'Location': book_location,
+                'Lift_Item': book_lift_item,
+                'Load_Weight': book_load_weight,
+                'Status': 'Confirmed',
             }
 
+            lead_time = (pd.to_datetime(book_booking_date) - pd.to_datetime(book_request_date)).days
+
+            # Booking Summary
+            st.markdown("### 📋 Booking Summary")
+            summary = {
+                'Field': ['Project', 'Lift Item', 'Load Weight', 'Equipment', 'Unit ID', 'Booking Date', 'Duration', 'Priority', 'Location', 'Lead Time'],
+                'Value': [book_project, book_lift_item, f"{book_load_weight} T", book_type, book_id, str(book_booking_date), book_duration, book_priority, book_location, f"{lead_time} days"]
+            }
+            st.table(pd.DataFrame(summary))
+
+            st.markdown("---")
+
+            # Check for conflicts
             conflicts, has_conflict = detect_conflicts(df, new_booking)
 
             if has_conflict:
-                st.error(f"⚠️ CONFLICT DETECTED! {len(conflicts)} overlapping booking(s) found.")
+                st.error(f"⚠️ **CONFLICT DETECTED** — {len(conflicts)} existing booking(s) overlap with your request.")
 
+                # Show conflicting bookings
+                st.markdown("### 📌 Existing Bookings in Conflict")
+                conflict_display = conflicts[['Booking_ID', 'Booking_Date', 'Duration', 'Priority', 'Project', 'Lift_Item']].copy()
+                conflict_display.columns = ['Booking ID', 'Date', 'Duration', 'Priority', 'Project', 'Lift Item']
+                st.dataframe(conflict_display, use_container_width=True)
+
+                st.markdown("---")
+                st.markdown("### 🤖 AI Evaluation")
+
+                # AI evaluates priority
                 resolution_df = resolve_conflict(new_booking, conflicts)
-
-                st.markdown("### Resolution Decision")
 
                 for _, res in resolution_df.iterrows():
                     if res['New_Booking_Wins']:
-                        st.success(f"✅ **{res['Resolution']}**")
-                        st.markdown(f"Your booking overrides **{res['Conflicting_Booking']}** "
-                                    f"(Priority: {res['Conflict_Priority']})")
+                        st.success(f"✅ **AI Recommends: YOUR BOOKING WINS**")
+                        st.markdown(f"**Reason:** {res['Resolution']}")
+                        st.markdown(f"Your booking ({book_priority} priority) overrides "
+                                    f"**{res['Conflicting_Booking']}** ({res['Conflict_Priority']} priority)")
                     else:
-                        st.warning(f"❌ **{res['Resolution']}**")
+                        st.warning(f"⚠️ **AI Recommends: EXISTING BOOKING HAS PRIORITY**")
+                        st.markdown(f"**Reason:** {res['Resolution']}")
                         st.markdown(f"Existing booking **{res['Conflicting_Booking']}** "
-                                    f"(Priority: {res['Conflict_Priority']}) takes precedence.")
+                                    f"({res['Conflict_Priority']} priority, {res['Conflict_Project']}) "
+                                    f"takes precedence over your request ({book_priority} priority).")
 
-                st.markdown("### Conflicting Bookings Detail")
-                st.dataframe(resolution_df, use_container_width=True)
+                st.markdown("---")
+                st.markdown("### 🔐 Manager Override")
+                st.markdown("If this booking is critical, a Manager can override the AI decision.")
+
+                # Store conflict state in session
+                st.session_state['has_pending_conflict'] = True
+                st.session_state['conflict_booking'] = new_booking
+                st.session_state['conflict_details'] = resolution_df
+
+                override_col1, override_col2 = st.columns(2)
+
+                with override_col1:
+                    if st.button("✅ Override - Approve My Booking", type="primary", use_container_width=True):
+                        st.success("✅ **MANAGER OVERRIDE APPROVED**")
+                        st.markdown("Your booking has been **approved** with Manager's authority.")
+                        st.markdown(f"**{conflicts.iloc[0]['Booking_ID']}** will be rescheduled.")
+                        st.balloons()
+
+                with override_col2:
+                    if st.button("❌ Accept AI Decision", use_container_width=True):
+                        all_wins = resolution_df['New_Booking_Wins'].all()
+                        if all_wins:
+                            st.success("✅ **BOOKING CONFIRMED** — AI decision accepted. Your booking wins.")
+                        else:
+                            st.info("📋 **BOOKING QUEUED** — You'll be notified when equipment becomes available.")
+                            st.markdown("**💡 Suggestions:**")
+                            st.markdown("- Try a different date")
+                            st.markdown("- Select a different equipment unit")
+                            st.markdown("- Increase priority level if task is urgent")
 
             else:
-                st.success("✅ NO CONFLICT! Equipment is available for the requested period.")
+                # No conflict - booking approved
+                st.success("✅ **BOOKING APPROVED** — No conflicts detected!")
+                st.markdown(f"Equipment **{book_id}** ({book_type}) is available for **{book_booking_date}**.")
                 st.balloons()
 
-                st.markdown("### Booking Summary")
-                summary_data = {
-                    'Field': ['Equipment', 'Unit ID', 'Date', 'Duration', 'Shift', 'Priority', 'Project', 'Location'],
-                    'Value': [new_type, new_equipment_id, str(new_booking_date), new_duration,
-                              new_shift, new_priority, new_project, new_location]
-                }
-                st.table(pd.DataFrame(summary_data))
-
-
-# ============================================================
-# PAGE: AI BOOKING
-# ============================================================
-elif page == "🤖 AI Booking":
-    st.header("🤖 AI-Powered Equipment Booking")
-    st.markdown("Submit a booking request and let the AI determine if you get the equipment based on priority and scheduling rules.")
-
-    st.markdown("---")
-
-    with st.spinner("Loading AI model..."):
-        try:
-            model, encoders, accuracy, features, report = train_model(df)
-            model_trained = True
-        except Exception as e:
-            st.error(f"Model loading failed: {e}")
-            model_trained = False
-
-    if model_trained:
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("📝 Booking Request")
-
-            book_request_date = st.date_input("Request Date", datetime.now(), key='ai_req_date')
-            book_booking_date = st.date_input("Booking Date", datetime.now() + timedelta(days=3), key='ai_book_date')
-
-            book_category = st.selectbox("Equipment Category", sorted(df['Equipment_Category'].unique()), key='ai_cat')
-            book_types = sorted(df[df['Equipment_Category'] == book_category]['Equipment_Type'].unique())
-            book_type = st.selectbox("Equipment Type", book_types, key='ai_type')
-
-            book_ids = sorted(df[df['Equipment_Type'] == book_type]['Equipment_ID'].unique())
-            book_id = st.selectbox("Equipment Unit", book_ids, key='ai_id')
-
-            book_duration = st.selectbox("Duration", list(DURATION_MAP.keys()), key='ai_duration')
-            book_priority = st.selectbox("Priority", ['Low', 'Medium', 'High', 'Urgent'], key='ai_priority')
-            book_project = st.selectbox("Project", sorted(df['Project'].unique()), key='ai_project')
-
-            book_locations = sorted(df['Location'].unique().tolist())
-            book_location = st.selectbox("Location", book_locations, key='ai_location')
-            book_lift_item = st.text_input("Lift Item", "Steel Block Section", key='ai_lift')
-
-        with col2:
-            st.subheader("🤖 AI Decision")
-
-            if st.button("📋 Submit Booking", type="primary", use_container_width=True):
-                # Calculate lead time
-                lead_time = (pd.to_datetime(book_booking_date) - pd.to_datetime(book_request_date)).days
-
-                # Check for conflicts
-                new_booking = {
-                    'Request_Date': book_request_date,
-                    'Booking_Date': book_booking_date,
-                    'Equipment_ID': book_id,
-                    'Duration': book_duration,
-                    'Shift': 'Day Shift (0700-1900)',
-                    'Priority': book_priority,
-                    'Status': 'Confirmed',
-                }
-                conflicts, has_conflict = detect_conflicts(df, new_booking)
-
-                # AI Decision
-                try:
-                    input_data = pd.DataFrame([{
-                        'Priority_Score': PRIORITY_SCORES[book_priority],
-                        'Duration_Days': DURATION_MAP[book_duration],
-                        'Lead_Time': lead_time,
-                        'Equipment_Category_Enc': encoders['equipment_cat'].transform([book_category])[0],
-                        'Equipment_Type_Enc': encoders['equipment_type'].transform([book_type])[0],
-                        'Shift_Enc': encoders['shift'].transform(['Day Shift (0700-1900)'])[0],
-                        'Project_Enc': encoders['project'].transform([book_project])[0],
-                        'Weather_Enc': 0,
-                        'Wind_Speed_Knots': 10,
-                        'Crane_Utilization_Pct': 60,
-                    }])
-
-                    prediction = model.predict(input_data)[0]
-                    probability = model.predict_proba(input_data)[0]
-
-                    # Booking Summary
-                    st.markdown("### 📋 Booking Summary")
-                    summary = {
-                        'Field': ['Equipment', 'Unit ID', 'Booking Date', 'Duration', 'Priority', 'Project', 'Location', 'Lift Item', 'Lead Time'],
-                        'Value': [book_type, book_id, str(book_booking_date), book_duration, book_priority, book_project, book_location, book_lift_item, f"{lead_time} days"]
-                    }
-                    st.table(pd.DataFrame(summary))
-
-                    st.markdown("---")
-                    st.markdown("### 🤖 AI Decision")
-
-                    if has_conflict:
-                        st.warning(f"⚠️ Conflict detected with {len(conflicts)} existing booking(s)")
-
-                        resolution_df = resolve_conflict(new_booking, conflicts)
-                        for _, res in resolution_df.iterrows():
-                            if res['New_Booking_Wins']:
-                                st.success(f"✅ **BOOKING APPROVED** — {res['Resolution']}")
-                            else:
-                                st.error(f"❌ **BOOKING DENIED** — {res['Resolution']}")
-
-                        st.markdown("### Conflict Details")
-                        st.dataframe(resolution_df, use_container_width=True)
-                    else:
-                        if prediction == 1:
-                            st.success(f"✅ **BOOKING APPROVED** (Confidence: {probability[1]*100:.1f}%)")
-                            st.progress(probability[1])
-                            st.markdown("No conflicts found. Equipment is available for your requested period.")
-                        else:
-                            st.error(f"❌ **BOOKING DENIED** (Confidence: {probability[0]*100:.1f}%)")
-                            st.progress(probability[0])
-                            st.markdown("**💡 Suggestion:** Try a different date, increase priority, or select another equipment unit.")
-
-                except Exception as e:
-                    st.error(f"Booking error: {e}")
-
-        st.markdown("---")
-        st.subheader("📊 AI Model Info")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Model Accuracy", f"{accuracy*100:.1f}%")
-        with col2:
-            st.metric("Training Records", len(df))
-        with col3:
-            st.metric("Features Used", len(features))
+                # AI confidence
+                if model is not None:
+                    try:
+                        input_data = pd.DataFrame([{
+                            'Priority_Score': PRIORITY_SCORES[book_priority],
+                            'Duration_Days': DURATION_MAP[book_duration],
+                            'Lead_Time': lead_time,
+                            'Equipment_Category_Enc': encoders['equipment_cat'].transform([book_category])[0],
+                            'Equipment_Type_Enc': encoders['equipment_type'].transform([book_type])[0],
+                            'Shift_Enc': encoders['shift'].transform(['Day Shift (0700-1900)'])[0],
+                            'Project_Enc': encoders['project'].transform([book_project])[0],
+                            'Weather_Enc': 0,
+                            'Wind_Speed_Knots': 10,
+                            'Crane_Utilization_Pct': 60,
+                        }])
+                        probability = model.predict_proba(input_data)[0]
+                        st.progress(probability[1])
+                        st.caption(f"AI Confidence: {probability[1]*100:.1f}%")
+                    except:
+                        pass
 
 
 # ============================================================
