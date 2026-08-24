@@ -211,7 +211,7 @@ with st.sidebar:
 
     page = st.radio(
         "Select Module",
-        ["📊 Dashboard", "📋 Booking Manager", "⚠️ Conflict Detector", "🤖 AI Prediction", "📈 Analytics"],
+        ["📊 Dashboard", "📋 Booking Manager", "⚠️ Conflict Detector", "🤖 AI Booking", "📈 Analytics"],
         index=0
     )
 
@@ -414,23 +414,121 @@ elif page == "⚠️ Conflict Detector":
 
 
 # ============================================================
-# PAGE: AI PREDICTION
+# PAGE: AI BOOKING
 # ============================================================
-elif page == "🤖 AI Prediction":
-    st.header("🤖 AI-Powered Conflict Prediction")
-    st.markdown("Machine Learning model trained on historical booking data to predict conflict outcomes.")
+elif page == "🤖 AI Booking":
+    st.header("🤖 AI-Powered Equipment Booking")
+    st.markdown("Submit a booking request and let the AI determine if you get the equipment based on priority and scheduling rules.")
 
     st.markdown("---")
 
-    with st.spinner("Training AI model on historical data..."):
+    with st.spinner("Loading AI model..."):
         try:
             model, encoders, accuracy, features, report = train_model(df)
             model_trained = True
         except Exception as e:
-            st.error(f"Model training failed: {e}")
+            st.error(f"Model loading failed: {e}")
             model_trained = False
 
     if model_trained:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("📝 Booking Request")
+
+            book_request_date = st.date_input("Request Date", datetime.now(), key='ai_req_date')
+            book_booking_date = st.date_input("Booking Date", datetime.now() + timedelta(days=3), key='ai_book_date')
+
+            book_category = st.selectbox("Equipment Category", sorted(df['Equipment_Category'].unique()), key='ai_cat')
+            book_types = sorted(df[df['Equipment_Category'] == book_category]['Equipment_Type'].unique())
+            book_type = st.selectbox("Equipment Type", book_types, key='ai_type')
+
+            book_ids = sorted(df[df['Equipment_Type'] == book_type]['Equipment_ID'].unique())
+            book_id = st.selectbox("Equipment Unit", book_ids, key='ai_id')
+
+            book_duration = st.selectbox("Duration", list(DURATION_MAP.keys()), key='ai_duration')
+            book_priority = st.selectbox("Priority", ['Low', 'Medium', 'High', 'Urgent'], key='ai_priority')
+            book_project = st.selectbox("Project", sorted(df['Project'].unique()), key='ai_project')
+
+            book_locations = sorted(df['Location'].unique().tolist())
+            book_location = st.selectbox("Location", book_locations, key='ai_location')
+            book_lift_item = st.text_input("Lift Item", "Steel Block Section", key='ai_lift')
+
+        with col2:
+            st.subheader("🤖 AI Decision")
+
+            if st.button("📋 Submit Booking", type="primary", use_container_width=True):
+                # Calculate lead time
+                lead_time = (pd.to_datetime(book_booking_date) - pd.to_datetime(book_request_date)).days
+
+                # Check for conflicts
+                new_booking = {
+                    'Request_Date': book_request_date,
+                    'Booking_Date': book_booking_date,
+                    'Equipment_ID': book_id,
+                    'Duration': book_duration,
+                    'Shift': 'Day Shift (0700-1900)',
+                    'Priority': book_priority,
+                    'Status': 'Confirmed',
+                }
+                conflicts, has_conflict = detect_conflicts(df, new_booking)
+
+                # AI Decision
+                try:
+                    input_data = pd.DataFrame([{
+                        'Priority_Score': PRIORITY_SCORES[book_priority],
+                        'Duration_Days': DURATION_MAP[book_duration],
+                        'Lead_Time': lead_time,
+                        'Equipment_Category_Enc': encoders['equipment_cat'].transform([book_category])[0],
+                        'Equipment_Type_Enc': encoders['equipment_type'].transform([book_type])[0],
+                        'Shift_Enc': encoders['shift'].transform(['Day Shift (0700-1900)'])[0],
+                        'Project_Enc': encoders['project'].transform([book_project])[0],
+                        'Weather_Enc': 0,
+                        'Wind_Speed_Knots': 10,
+                        'Crane_Utilization_Pct': 60,
+                    }])
+
+                    prediction = model.predict(input_data)[0]
+                    probability = model.predict_proba(input_data)[0]
+
+                    # Booking Summary
+                    st.markdown("### 📋 Booking Summary")
+                    summary = {
+                        'Field': ['Equipment', 'Unit ID', 'Booking Date', 'Duration', 'Priority', 'Project', 'Location', 'Lift Item', 'Lead Time'],
+                        'Value': [book_type, book_id, str(book_booking_date), book_duration, book_priority, book_project, book_location, book_lift_item, f"{lead_time} days"]
+                    }
+                    st.table(pd.DataFrame(summary))
+
+                    st.markdown("---")
+                    st.markdown("### 🤖 AI Decision")
+
+                    if has_conflict:
+                        st.warning(f"⚠️ Conflict detected with {len(conflicts)} existing booking(s)")
+
+                        resolution_df = resolve_conflict(new_booking, conflicts)
+                        for _, res in resolution_df.iterrows():
+                            if res['New_Booking_Wins']:
+                                st.success(f"✅ **BOOKING APPROVED** — {res['Resolution']}")
+                            else:
+                                st.error(f"❌ **BOOKING DENIED** — {res['Resolution']}")
+
+                        st.markdown("### Conflict Details")
+                        st.dataframe(resolution_df, use_container_width=True)
+                    else:
+                        if prediction == 1:
+                            st.success(f"✅ **BOOKING APPROVED** (Confidence: {probability[1]*100:.1f}%)")
+                            st.progress(probability[1])
+                            st.markdown("No conflicts found. Equipment is available for your requested period.")
+                        else:
+                            st.error(f"❌ **BOOKING DENIED** (Confidence: {probability[0]*100:.1f}%)")
+                            st.progress(probability[0])
+                            st.markdown("**💡 Suggestion:** Try a different date, increase priority, or select another equipment unit.")
+
+                except Exception as e:
+                    st.error(f"Booking error: {e}")
+
+        st.markdown("---")
+        st.subheader("📊 AI Model Info")
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Model Accuracy", f"{accuracy*100:.1f}%")
@@ -438,74 +536,6 @@ elif page == "🤖 AI Prediction":
             st.metric("Training Records", len(df))
         with col3:
             st.metric("Features Used", len(features))
-
-        st.markdown("---")
-
-        st.subheader("📊 Model Performance Report")
-        report_df = pd.DataFrame(report).transpose()
-        st.dataframe(report_df.round(3), use_container_width=True)
-
-        st.markdown("---")
-
-        st.subheader("🎯 Feature Importance")
-        importance_df = pd.DataFrame({
-            'Feature': features,
-            'Importance': model.feature_importances_
-        }).sort_values('Importance', ascending=False)
-        st.bar_chart(importance_df.set_index('Feature')['Importance'])
-
-        st.markdown("---")
-
-        st.subheader("🔮 Make a Prediction")
-        st.markdown("Input booking parameters to predict whether it will win equipment allocation.")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            pred_priority = st.select_slider("Priority", options=['Low', 'Medium', 'High', 'Urgent'], value='Medium')
-            pred_duration = st.selectbox("Duration", list(DURATION_MAP.keys()), key='pred_duration')
-            pred_lead_time = st.slider("Lead Time (days)", 1, 14, 5)
-            pred_wind = st.slider("Wind Speed (knots)", 0, 45, 10)
-            pred_utilization = st.slider("Crane Utilization %", 20, 100, 60)
-
-        with col2:
-            pred_category = st.selectbox("Equipment Category", sorted(df['Equipment_Category'].unique()), key='pred_cat')
-            pred_type = st.selectbox("Equipment Type",
-                                     sorted(df[df['Equipment_Category'] == pred_category]['Equipment_Type'].unique()),
-                                     key='pred_type')
-            pred_shift = st.selectbox("Shift", ['Day Shift (0700-1900)', 'Night Shift (1900-0700)'], key='pred_shift')
-            pred_project = st.selectbox("Project", sorted(df['Project'].unique()), key='pred_project')
-            pred_weather = st.selectbox("Weather", sorted(df['Weather_Condition'].dropna().unique()), key='pred_weather')
-
-        if st.button("🔮 Predict Outcome", type="primary", use_container_width=True):
-            try:
-                input_data = pd.DataFrame([{
-                    'Priority_Score': PRIORITY_SCORES[pred_priority],
-                    'Duration_Days': DURATION_MAP[pred_duration],
-                    'Lead_Time': pred_lead_time,
-                    'Equipment_Category_Enc': encoders['equipment_cat'].transform([pred_category])[0],
-                    'Equipment_Type_Enc': encoders['equipment_type'].transform([pred_type])[0],
-                    'Shift_Enc': encoders['shift'].transform([pred_shift])[0],
-                    'Project_Enc': encoders['project'].transform([pred_project])[0],
-                    'Weather_Enc': encoders['weather'].transform([pred_weather])[0],
-                    'Wind_Speed_Knots': pred_wind,
-                    'Crane_Utilization_Pct': pred_utilization,
-                }])
-
-                prediction = model.predict(input_data)[0]
-                probability = model.predict_proba(input_data)[0]
-
-                st.markdown("### Prediction Result")
-
-                if prediction == 1:
-                    st.success(f"✅ **WINS EQUIPMENT** (Confidence: {probability[1]*100:.1f}%)")
-                    st.progress(probability[1])
-                else:
-                    st.error(f"❌ **DOES NOT WIN EQUIPMENT** (Confidence: {probability[0]*100:.1f}%)")
-                    st.progress(probability[0])
-                    st.markdown("**💡 Recommendation:** Consider increasing priority or adjusting the schedule.")
-            except Exception as e:
-                st.error(f"Prediction error: {e}")
 
 
 # ============================================================
