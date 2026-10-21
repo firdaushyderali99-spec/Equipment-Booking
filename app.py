@@ -21,121 +21,188 @@ st.set_page_config(
 )
 
 # ============================================================
-# CUSTOM CSS
+# CORPORATE CSS — Deep Navy / Teal / Gold Theme
 # ============================================================
 st.markdown("""
 <style>
+    /* ---- Global ---- */
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1E3A5F;
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #0C2340;
         text-align: center;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.3rem;
+        letter-spacing: 0.5px;
     }
     .sub-header {
-        font-size: 1.1rem;
-        color: #666;
+        font-size: 1rem;
+        color: #5A6F8A;
         text-align: center;
         margin-bottom: 2rem;
+        font-weight: 400;
     }
+
+    /* ---- Brand Identity ---- */
     .brand-header {
-        font-size: 2.8rem;
+        font-size: 2.6rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #0f3460 0%, #533483 100%);
+        background: linear-gradient(135deg, #0C2340 0%, #007C8A 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        letter-spacing: 3px;
+        letter-spacing: 4px;
         margin-bottom: 0;
     }
     .brand-sub {
-        font-size: 1rem;
-        color: #888;
+        font-size: 0.85rem;
+        color: #5A6F8A;
         text-align: center;
-        margin-top: 0;
+        margin-top: 2px;
         margin-bottom: 1.5rem;
-        letter-spacing: 1px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 500;
     }
+
+    /* ---- Divider ---- */
+    .corp-divider {
+        height: 3px;
+        background: linear-gradient(90deg, #0C2340 0%, #007C8A 50%, #00A3B5 100%);
+        border: none;
+        border-radius: 2px;
+        margin: 0.5rem 0 1.5rem 0;
+    }
+
+    /* ---- Score / Decision Cards ---- */
     .score-win {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        padding: 15px;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #0C2340 0%, #007C8A 100%);
+        padding: 18px;
+        border-radius: 8px;
         color: white;
         text-align: center;
+        border: 1px solid #00A3B5;
     }
     .score-lose {
-        background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-        padding: 15px;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #8B1A1A 0%, #D63031 100%);
+        padding: 18px;
+        border-radius: 8px;
         color: white;
         text-align: center;
+        border: 1px solid #D63031;
     }
+
+    /* ---- Equipment Status Cards ---- */
     .status-card {
-        padding: 14px;
-        border-radius: 10px;
+        padding: 18px 14px;
+        border-radius: 8px;
         text-align: center;
         margin-bottom: 8px;
+        border: 1px solid rgba(255,255,255,0.1);
     }
     .status-available {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        background: linear-gradient(135deg, #006B5A 0%, #00B27A 100%);
         color: white;
     }
     .status-booked {
-        background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-        color: #333;
+        background: linear-gradient(135deg, #0C2340 0%, #007C8A 100%);
+        color: white;
     }
     .status-conflict {
-        background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        background: linear-gradient(135deg, #8B1A1A 0%, #D63031 100%);
         color: white;
     }
 
-    /* ---- Professional Sidebar Navigation ---- */
+    /* ---- KPI Metric Overrides ---- */
+    [data-testid="stMetric"] {
+        background: #FFFFFF;
+        border: 1px solid #D6DDE6;
+        border-left: 4px solid #007C8A;
+        border-radius: 6px;
+        padding: 12px 16px;
+        box-shadow: 0 1px 3px rgba(12,35,64,0.06);
+    }
+    [data-testid="stMetricLabel"] {
+        color: #5A6F8A !important;
+        font-size: 0.8rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: #0C2340 !important;
+        font-weight: 700 !important;
+    }
+
+    /* ============================================
+       SIDEBAR — Corporate Dark Navy
+       ============================================ */
     section[data-testid="stSidebar"] {
-        background-color: #1a1a2e;
+        background-color: #0A1628;
     }
     section[data-testid="stSidebar"] .stMarkdown h1,
     section[data-testid="stSidebar"] .stMarkdown h2,
-    section[data-testid="stSidebar"] .stMarkdown h3,
+    section[data-testid="stSidebar"] .stMarkdown h3 {
+        color: #FFFFFF !important;
+    }
     section[data-testid="stSidebar"] .stMarkdown p,
     section[data-testid="stSidebar"] .stMarkdown span,
     section[data-testid="stSidebar"] .stMarkdown li {
-        color: #e0e0e0 !important;
+        color: #8B9DC3 !important;
     }
 
-    /* Nav button styling */
+    /* Nav buttons */
     section[data-testid="stSidebar"] .stButton > button {
         width: 100%;
         text-align: left;
-        padding: 12px 20px;
-        margin: 4px 0;
+        padding: 11px 18px;
+        margin: 3px 0;
         border: none;
-        border-radius: 8px;
+        border-radius: 6px;
         background-color: transparent;
-        color: #b0b0c0 !important;
-        font-size: 15px;
+        color: #8B9DC3 !important;
+        font-size: 14px;
         font-weight: 500;
         transition: all 0.2s ease;
         cursor: pointer;
+        letter-spacing: 0.3px;
     }
     section[data-testid="stSidebar"] .stButton > button:hover {
-        background-color: #16213e;
-        color: #ffffff !important;
+        background-color: #0F2A47;
+        color: #FFFFFF !important;
     }
 
-    /* Active nav button */
+    /* Active nav button — teal accent */
     section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #0f3460 0%, #533483 100%);
-        color: #ffffff !important;
-        border-left: 4px solid #e94560;
+        background: linear-gradient(135deg, #0C2340 0%, #007C8A 100%);
+        color: #FFFFFF !important;
+        border-left: 3px solid #00A3B5;
         font-weight: 600;
     }
 
     /* Sidebar info cards */
     section[data-testid="stSidebar"] .stAlert {
-        background-color: #16213e;
-        border: 1px solid #0f3460;
-        color: #e0e0e0;
-        border-radius: 8px;
+        background-color: #0F2A47;
+        border: 1px solid #1A4B6E;
+        color: #8B9DC3;
+        border-radius: 6px;
+    }
+
+    /* ---- Dataframe / Table Styling ---- */
+    .stDataFrame {
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    /* ---- Buttons (main content) ---- */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #0C2340 0%, #007C8A 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #007C8A 0%, #00A3B5 100%);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -171,7 +238,6 @@ PHASE_SCORES = {
 @st.cache_data
 def load_data():
     raw_df = pd.read_excel('Equipment_Bookings_AI_Training.xlsx', engine='openpyxl')
-    # Pre-compute derived columns here so we never mutate the cached object later
     raw_df = raw_df.copy()
     raw_df['Booking_Date_dt'] = pd.to_datetime(raw_df['Booking_Date'])
     raw_df['Booking_Month'] = raw_df['Booking_Date_dt'].dt.to_period('M').astype(str)
@@ -452,10 +518,9 @@ def train_model(df):
 
 
 # ============================================================
-# SIDEBAR - PROFESSIONAL NAVIGATION
+# SIDEBAR — CORPORATE NAVIGATION
 # ============================================================
 
-# Initialize page state
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'Dashboard'
 
@@ -464,7 +529,6 @@ with st.sidebar:
     st.markdown("##### Yard Equipment Booking System")
     st.markdown("---")
 
-    # Navigation buttons
     nav_items = {
         'Dashboard': '📊  Dashboard',
         'Booking Manager': '📋  Booking Manager',
@@ -485,7 +549,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-# Load data (derived columns pre-computed inside cache)
+# Load data
 try:
     df = load_data()
 except Exception as e:
@@ -493,7 +557,7 @@ except Exception as e:
     st.info("Please ensure 'Equipment_Bookings_AI_Training.xlsx' is in the repo root.")
     st.stop()
 
-# Load AI model (with safe fallback)
+# Load AI model
 model = None
 encoders = None
 accuracy = 0
@@ -508,27 +572,28 @@ except Exception:
 with st.sidebar:
     st.markdown("##### System Status")
     st.markdown(f"""
-    <div style="background-color:#16213e; padding:12px; border-radius:8px; margin:6px 0;">
-        <span style="color:#8a8aa0; font-size:12px;">DATE</span><br>
-        <span style="color:#ffffff; font-size:14px;">{datetime.now().strftime('%d %b %Y')}</span>
+    <div style="background-color:#0F2A47; padding:10px 14px; border-radius:6px; margin:5px 0; border-left:3px solid #007C8A;">
+        <span style="color:#5A7A9A; font-size:11px; text-transform:uppercase; letter-spacing:1px;">Date</span><br>
+        <span style="color:#FFFFFF; font-size:13px; font-weight:600;">{datetime.now().strftime('%d %b %Y')}</span>
     </div>
-    <div style="background-color:#16213e; padding:12px; border-radius:8px; margin:6px 0;">
-        <span style="color:#8a8aa0; font-size:12px;">RECORDS</span><br>
-        <span style="color:#ffffff; font-size:14px;">{len(df):,} bookings</span>
+    <div style="background-color:#0F2A47; padding:10px 14px; border-radius:6px; margin:5px 0; border-left:3px solid #007C8A;">
+        <span style="color:#5A7A9A; font-size:11px; text-transform:uppercase; letter-spacing:1px;">Records</span><br>
+        <span style="color:#FFFFFF; font-size:13px; font-weight:600;">{len(df):,} bookings</span>
     </div>
-    <div style="background-color:#16213e; padding:12px; border-radius:8px; margin:6px 0;">
-        <span style="color:#8a8aa0; font-size:12px;">EQUIPMENT</span><br>
-        <span style="color:#ffffff; font-size:14px;">{df['Equipment_ID'].nunique()} units</span>
+    <div style="background-color:#0F2A47; padding:10px 14px; border-radius:6px; margin:5px 0; border-left:3px solid #007C8A;">
+        <span style="color:#5A7A9A; font-size:11px; text-transform:uppercase; letter-spacing:1px;">Equipment</span><br>
+        <span style="color:#FFFFFF; font-size:13px; font-weight:600;">{df['Equipment_ID'].nunique()} units</span>
     </div>
-    <div style="background-color:#16213e; padding:12px; border-radius:8px; margin:6px 0;">
-        <span style="color:#8a8aa0; font-size:12px;">AI MODEL</span><br>
-        <span style="color:{'#38ef7d' if model else '#f45c43'}; font-size:14px;">{'● Active' if model else '● Inactive'} — {accuracy*100:.1f}% accuracy</span>
+    <div style="background-color:#0F2A47; padding:10px 14px; border-radius:6px; margin:5px 0; border-left:3px solid {'#00B27A' if model else '#D63031'};">
+        <span style="color:#5A7A9A; font-size:11px; text-transform:uppercase; letter-spacing:1px;">AI Model</span><br>
+        <span style="color:{'#00B27A' if model else '#D63031'}; font-size:13px; font-weight:600;">{'● Active' if model else '● Inactive'} — {accuracy*100:.1f}%</span>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(
-        '<div style="text-align:center; color:#555; font-size:11px;">EQUIPIX v2.0 — AI Priority Scoring</div>',
+        '<div style="text-align:center; color:#5A7A9A; font-size:10px; letter-spacing:1px; text-transform:uppercase;">'
+        'EQUIPIX v2.0 — AI Priority Engine</div>',
         unsafe_allow_html=True
     )
 
@@ -541,6 +606,7 @@ today = pd.to_datetime(datetime.now().date())
 if page == "Dashboard":
     st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
     st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="corp-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="main-header">📊 Live Operations Hub</div>', unsafe_allow_html=True)
     st.markdown("")
 
@@ -591,19 +657,22 @@ if page == "Dashboard":
     with eq_col1:
         st.markdown(
             f'<div class="status-card status-available">'
-            f'<h2>{available_count}</h2><p>Available</p></div>',
+            f'<h2 style="margin:0;">{available_count}</h2>'
+            f'<p style="margin:4px 0 0 0; font-size:0.85rem; opacity:0.9;">Available</p></div>',
             unsafe_allow_html=True
         )
     with eq_col2:
         st.markdown(
             f'<div class="status-card status-booked">'
-            f'<h2>{booked_count}</h2><p>Booked</p></div>',
+            f'<h2 style="margin:0;">{booked_count}</h2>'
+            f'<p style="margin:4px 0 0 0; font-size:0.85rem; opacity:0.9;">Booked</p></div>',
             unsafe_allow_html=True
         )
     with eq_col3:
         st.markdown(
             f'<div class="status-card status-conflict">'
-            f'<h2>{conflict_eq_count}</h2><p>In Conflict</p></div>',
+            f'<h2 style="margin:0;">{conflict_eq_count}</h2>'
+            f'<p style="margin:4px 0 0 0; font-size:0.85rem; opacity:0.9;">In Conflict</p></div>',
             unsafe_allow_html=True
         )
 
@@ -674,7 +743,7 @@ if page == "Dashboard":
 
     st.markdown("---")
 
-    # ---- BOOKINGS BY CATEGORY (quick glance) ----
+    # ---- BOOKINGS BY CATEGORY ----
     st.subheader("📦 Bookings by Equipment Category")
     st.bar_chart(df['Equipment_Category'].value_counts())
 
@@ -685,6 +754,7 @@ if page == "Dashboard":
 elif page == "Booking Manager":
     st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
     st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="corp-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="main-header">📋 Booking Manager</div>', unsafe_allow_html=True)
     st.markdown("")
 
@@ -721,11 +791,12 @@ elif page == "Booking Manager":
 
 
 # ============================================================
-# PAGE: BOOKING (UNIFIED)
+# PAGE: BOOKING
 # ============================================================
 elif page == "Booking":
     st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
     st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="corp-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="main-header">🔧 Equipment Booking</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">AI-powered booking with 5-factor priority scoring</div>', unsafe_allow_html=True)
 
@@ -908,6 +979,7 @@ elif page == "Booking":
 elif page == "Analytics":
     st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
     st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="corp-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="main-header">📈 Historical Insights & Trends</div>', unsafe_allow_html=True)
     st.markdown("")
 
@@ -996,5 +1068,10 @@ elif page == "Analytics":
 # FOOTER
 # ============================================================
 st.markdown("---")
-st.caption(f"⚙️ EQUIPIX v2.0 — Yard Equipment Booking System | AI Priority Scoring | {datetime.now().strftime('%Y')}")
+st.markdown(
+    f'<div style="text-align:center; color:#5A6F8A; font-size:12px; padding:8px 0;">'
+    f'⚙️ EQUIPIX v2.0 — Yard Equipment Booking System &nbsp;|&nbsp; AI Priority Engine &nbsp;|&nbsp; {datetime.now().strftime("%Y")}'
+    f'</div>',
+    unsafe_allow_html=True
+)
 
