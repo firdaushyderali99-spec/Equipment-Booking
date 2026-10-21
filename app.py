@@ -14,8 +14,8 @@ warnings.filterwarnings('ignore')
 # PAGE CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="Equipment Booking AI - Conflict Resolution",
-    page_icon="🏗️",
+    page_title="EQUIPIX — Yard Equipment Booking System",
+    page_icon="⚙️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -38,6 +38,24 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
     }
+    .brand-header {
+        font-size: 2.8rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #0f3460 0%, #533483 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        letter-spacing: 3px;
+        margin-bottom: 0;
+    }
+    .brand-sub {
+        font-size: 1rem;
+        color: #888;
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        letter-spacing: 1px;
+    }
     .score-win {
         background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
         padding: 15px;
@@ -51,6 +69,24 @@ st.markdown("""
         border-radius: 10px;
         color: white;
         text-align: center;
+    }
+    .status-card {
+        padding: 14px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 8px;
+    }
+    .status-available {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+    }
+    .status-booked {
+        background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+        color: #333;
+    }
+    .status-conflict {
+        background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        color: white;
     }
 
     /* ---- Professional Sidebar Navigation ---- */
@@ -134,8 +170,12 @@ PHASE_SCORES = {
 
 @st.cache_data
 def load_data():
-    df = pd.read_excel('Equipment_Bookings_AI_Training.xlsx', engine='openpyxl')
-    return df
+    raw_df = pd.read_excel('Equipment_Bookings_AI_Training.xlsx', engine='openpyxl')
+    # Pre-compute derived columns here so we never mutate the cached object later
+    raw_df = raw_df.copy()
+    raw_df['Booking_Date_dt'] = pd.to_datetime(raw_df['Booking_Date'])
+    raw_df['Booking_Month'] = raw_df['Booking_Date_dt'].dt.to_period('M').astype(str)
+    return raw_df
 
 
 def calculate_end_date(booking_date, duration):
@@ -174,7 +214,6 @@ def detect_conflicts(df, new_booking):
     if same_equipment.empty:
         return pd.DataFrame(), False
 
-    same_equipment['Booking_Date_dt'] = pd.to_datetime(same_equipment['Booking_Date'])
     same_equipment['End_Date_dt'] = same_equipment.apply(
         lambda row: calculate_end_date(row['Booking_Date_dt'], row['Duration']), axis=1
     )
@@ -269,8 +308,8 @@ def calculate_ai_priority_score(booking, df, equipment_info):
 
     recent_bookings = df[
         (df['Equipment_ID'] == equipment_id) &
-        (pd.to_datetime(df['Booking_Date']) < pd.to_datetime(booking['Booking_Date']))
-    ].sort_values('Booking_Date', ascending=False)
+        (df['Booking_Date_dt'] < pd.to_datetime(booking['Booking_Date']))
+    ].sort_values('Booking_Date_dt', ascending=False)
 
     if not recent_bookings.empty:
         last_location = recent_bookings.iloc[0]['Location']
@@ -368,7 +407,6 @@ def train_model(df):
     df_model['Priority_Score'] = df_model['Priority'].map(PRIORITY_SCORES)
     df_model['Duration_Days'] = df_model['Duration'].map(DURATION_MAP)
     df_model['Request_Date_dt'] = pd.to_datetime(df_model['Request_Date'])
-    df_model['Booking_Date_dt'] = pd.to_datetime(df_model['Booking_Date'])
     df_model['Lead_Time'] = (df_model['Booking_Date_dt'] - df_model['Request_Date_dt']).dt.days
 
     le_equipment_cat = LabelEncoder()
@@ -422,8 +460,8 @@ if 'current_page' not in st.session_state:
     st.session_state.current_page = 'Dashboard'
 
 with st.sidebar:
-    st.markdown("## 🏗️ Equipment AI")
-    st.markdown("##### Shipyard Booking System")
+    st.markdown("## ⚙️ EQUIPIX")
+    st.markdown("##### Yard Equipment Booking System")
     st.markdown("---")
 
     # Navigation buttons
@@ -447,7 +485,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-# Load data
+# Load data (derived columns pre-computed inside cache)
 try:
     df = load_data()
 except Exception as e:
@@ -455,12 +493,16 @@ except Exception as e:
     st.info("Please ensure 'Equipment_Bookings_AI_Training.xlsx' is in the repo root.")
     st.stop()
 
-# Load AI model
+# Load AI model (with safe fallback)
+model = None
+encoders = None
+accuracy = 0
+features = []
+report = {}
 try:
     model, encoders, accuracy, features, report = train_model(df)
-except Exception as e:
-    model = None
-    accuracy = 0
+except Exception:
+    pass
 
 # Sidebar system info
 with st.sidebar:
@@ -480,25 +522,29 @@ with st.sidebar:
     </div>
     <div style="background-color:#16213e; padding:12px; border-radius:8px; margin:6px 0;">
         <span style="color:#8a8aa0; font-size:12px;">AI MODEL</span><br>
-        <span style="color:#38ef7d; font-size:14px;">● Active — {accuracy*100:.1f}% accuracy</span>
+        <span style="color:{'#38ef7d' if model else '#f45c43'}; font-size:14px;">{'● Active' if model else '● Inactive'} — {accuracy*100:.1f}% accuracy</span>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(
-        '<div style="text-align:center; color:#555; font-size:11px;">v2.0 — AI Priority Scoring</div>',
+        '<div style="text-align:center; color:#555; font-size:11px;">EQUIPIX v2.0 — AI Priority Scoring</div>',
         unsafe_allow_html=True
     )
 
 page = st.session_state.current_page
+today = pd.to_datetime(datetime.now().date())
 
 # ============================================================
-# PAGE: DASHBOARD
+# PAGE: DASHBOARD — LIVE OPERATIONS HUB
 # ============================================================
 if page == "Dashboard":
-    st.markdown('<div class="main-header">📊 Operations Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">📊 Live Operations Hub</div>', unsafe_allow_html=True)
     st.markdown("")
 
+    # ---- KPI ROW ----
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
@@ -519,36 +565,126 @@ if page == "Dashboard":
 
     st.markdown("---")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Bookings by Equipment Category")
-        st.bar_chart(df['Equipment_Category'].value_counts())
-    with col2:
-        st.subheader("Bookings by Priority")
-        st.bar_chart(df['Priority'].value_counts())
+    # ---- EQUIPMENT AVAILABILITY STATUS ----
+    st.subheader("🟢 Equipment Availability Status")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Status Distribution")
-        st.bar_chart(df['Status'].value_counts())
-    with col2:
-        st.subheader("Bookings by Project")
-        st.bar_chart(df['Project'].value_counts())
+    all_equipment_ids = df['Equipment_ID'].unique()
+    booked_today = df[
+        (df['Booking_Date_dt'] <= today) &
+        (df['Status'].isin(['Confirmed', 'Pending']))
+    ]['Equipment_ID'].unique()
 
-    if 'Conflict_Resolution' in df.columns:
-        st.markdown("---")
-        st.subheader("Conflict Resolution Summary")
-        resolution_counts = df[df['Conflict_Resolution'] != 'No Conflict']['Conflict_Resolution'].value_counts()
-        if not resolution_counts.empty:
-            st.dataframe(resolution_counts.reset_index().rename(
-                columns={'Conflict_Resolution': 'Resolution Method', 'count': 'Count'}
-            ), use_container_width=True)
+    if 'Has_Conflict' in df.columns:
+        conflict_equipment = df[
+            (df['Has_Conflict'] == 'Yes') &
+            (df['Booking_Date_dt'] <= today) &
+            (df['Status'].isin(['Confirmed', 'Pending']))
+        ]['Equipment_ID'].unique()
+    else:
+        conflict_equipment = np.array([])
+
+    available_count = len(set(all_equipment_ids) - set(booked_today))
+    booked_count = len(set(booked_today) - set(conflict_equipment))
+    conflict_eq_count = len(conflict_equipment)
+
+    eq_col1, eq_col2, eq_col3 = st.columns(3)
+    with eq_col1:
+        st.markdown(
+            f'<div class="status-card status-available">'
+            f'<h2>{available_count}</h2><p>Available</p></div>',
+            unsafe_allow_html=True
+        )
+    with eq_col2:
+        st.markdown(
+            f'<div class="status-card status-booked">'
+            f'<h2>{booked_count}</h2><p>Booked</p></div>',
+            unsafe_allow_html=True
+        )
+    with eq_col3:
+        st.markdown(
+            f'<div class="status-card status-conflict">'
+            f'<h2>{conflict_eq_count}</h2><p>In Conflict</p></div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown("---")
+
+    # ---- ACTIVE CONFLICTS + UPCOMING BOOKINGS ----
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.subheader("⚠️ Active Conflicts Needing Resolution")
+        if 'Has_Conflict' in df.columns:
+            active_conflicts = df[
+                (df['Has_Conflict'] == 'Yes') &
+                (df['Status'].isin(['Confirmed', 'Pending']))
+            ]
+            if not active_conflicts.empty:
+                conflict_cols = ['Booking_ID', 'Booking_Date', 'Equipment_ID',
+                                 'Equipment_Type', 'Project', 'Priority']
+                if 'Conflict_Resolution' in active_conflicts.columns:
+                    conflict_cols.append('Conflict_Resolution')
+                available_cols = [c for c in conflict_cols if c in active_conflicts.columns]
+                st.dataframe(
+                    active_conflicts[available_cols].sort_values('Booking_Date'),
+                    use_container_width=True, height=280, hide_index=True
+                )
+            else:
+                st.success("✅ No active conflicts — all clear!")
+        else:
+            st.info("Conflict data not available in dataset.")
+
+    with col_right:
+        st.subheader("📅 Upcoming Bookings (Next 7 Days)")
+        upcoming = df[
+            (df['Booking_Date_dt'] >= today) &
+            (df['Booking_Date_dt'] <= today + timedelta(days=7)) &
+            (df['Status'].isin(['Confirmed', 'Pending']))
+        ].sort_values('Booking_Date_dt')
+
+        if not upcoming.empty:
+            upcoming_cols = ['Booking_ID', 'Booking_Date', 'Equipment_Type',
+                             'Equipment_ID', 'Project', 'Priority', 'Status']
+            available_cols = [c for c in upcoming_cols if c in upcoming.columns]
+            st.dataframe(upcoming[available_cols], use_container_width=True, height=280, hide_index=True)
+        else:
+            st.info("📭 No bookings scheduled in the next 7 days.")
+
+    st.markdown("---")
+
+    # ---- RECENT AI DECISIONS LOG ----
+    st.subheader("🤖 Recent AI Conflict Resolutions")
+    if 'Conflict_Resolution' in df.columns and 'Has_Conflict' in df.columns:
+        resolved = df[
+            (df['Has_Conflict'] == 'Yes') &
+            (df['Conflict_Resolution'] != 'No Conflict')
+        ]
+        if not resolved.empty:
+            resolved_sorted = resolved.sort_values('Booking_Date', ascending=False).head(10)
+            log_cols = ['Booking_ID', 'Booking_Date', 'Equipment_Type', 'Equipment_ID',
+                        'Project', 'Priority', 'Conflict_Resolution']
+            if 'Wins_Equipment' in resolved_sorted.columns:
+                log_cols.append('Wins_Equipment')
+            available_cols = [c for c in log_cols if c in resolved_sorted.columns]
+            st.dataframe(resolved_sorted[available_cols], use_container_width=True, hide_index=True)
+        else:
+            st.info("No resolved conflicts to display.")
+    else:
+        st.info("Conflict resolution data not available.")
+
+    st.markdown("---")
+
+    # ---- BOOKINGS BY CATEGORY (quick glance) ----
+    st.subheader("📦 Bookings by Equipment Category")
+    st.bar_chart(df['Equipment_Category'].value_counts())
 
 
 # ============================================================
 # PAGE: BOOKING MANAGER
 # ============================================================
 elif page == "Booking Manager":
+    st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
     st.markdown('<div class="main-header">📋 Booking Manager</div>', unsafe_allow_html=True)
     st.markdown("")
 
@@ -588,6 +724,8 @@ elif page == "Booking Manager":
 # PAGE: BOOKING (UNIFIED)
 # ============================================================
 elif page == "Booking":
+    st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
     st.markdown('<div class="main-header">🔧 Equipment Booking</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">AI-powered booking with 5-factor priority scoring</div>', unsafe_allow_html=True)
 
@@ -765,47 +903,98 @@ elif page == "Booking":
 
 
 # ============================================================
-# PAGE: ANALYTICS
+# PAGE: ANALYTICS — HISTORICAL INSIGHTS & TRENDS
 # ============================================================
 elif page == "Analytics":
-    st.markdown('<div class="main-header">📈 Analytics</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-header">EQUIPIX</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-sub">Yard Equipment Booking System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">📈 Historical Insights & Trends</div>', unsafe_allow_html=True)
     st.markdown("")
 
+    # ---- UTILIZATION TRENDS OVER TIME ----
     if 'Crane_Utilization_Pct' in df.columns:
-        st.subheader("Equipment Utilization by Type")
-        util_by_type = df.groupby('Equipment_Type')['Crane_Utilization_Pct'].mean().sort_values(ascending=False)
-        st.bar_chart(util_by_type)
+        st.subheader("📉 Equipment Utilization Trend Over Time")
+        monthly_util = df.groupby('Booking_Month')['Crane_Utilization_Pct'].mean()
+        st.line_chart(monthly_util)
 
     st.markdown("---")
 
+    # ---- CONFLICT RATE TRENDS ----
     if 'Has_Conflict' in df.columns:
-        st.subheader("Conflicts by Equipment Type")
-        conflict_by_type = df[df['Has_Conflict'] == 'Yes'].groupby('Equipment_Type').size().sort_values(ascending=False)
-        if not conflict_by_type.empty:
-            st.bar_chart(conflict_by_type)
+        st.subheader("⚠️ Monthly Conflict Rate Trend")
+        monthly_conflicts = df[df['Has_Conflict'] == 'Yes'].groupby('Booking_Month').size()
+        monthly_total = df.groupby('Booking_Month').size()
+        conflict_rate = (monthly_conflicts / monthly_total * 100).fillna(0)
+        st.line_chart(conflict_rate)
+        st.caption("Conflict rate = (Conflicts / Total Bookings) × 100 per month")
 
     st.markdown("---")
 
-    st.subheader("Priority Distribution by Project")
+    # ---- TOP CONFLICTING EQUIPMENT ----
+    if 'Has_Conflict' in df.columns:
+        st.subheader("🔴 Top Conflicting Equipment")
+        top_conflict_eq = df[df['Has_Conflict'] == 'Yes'].groupby(
+            ['Equipment_ID', 'Equipment_Type']
+        ).size().reset_index(name='Conflict_Count').sort_values('Conflict_Count', ascending=False).head(10)
+
+        if not top_conflict_eq.empty:
+            st.dataframe(top_conflict_eq, use_container_width=True, hide_index=True)
+        else:
+            st.success("No conflicts recorded.")
+
+    st.markdown("---")
+
+    # ---- PRIORITY DISTRIBUTION BY PROJECT ----
+    st.subheader("📊 Priority Distribution by Project")
     priority_project = pd.crosstab(df['Project'], df['Priority'])
     st.dataframe(priority_project, use_container_width=True)
 
     st.markdown("---")
 
+    # ---- WEATHER IMPACT ON OPERATIONS ----
     if 'Weather_Condition' in df.columns:
-        st.subheader("Weather Impact on Operations")
+        st.subheader("🌦️ Weather Impact on Operations")
         weather_status = pd.crosstab(df['Weather_Condition'], df['Status'])
         st.dataframe(weather_status, use_container_width=True)
 
+        if 'Wind_Speed_Knots' in df.columns:
+            st.markdown("")
+            st.markdown("**Average Wind Speed by Weather Condition**")
+            wind_by_weather = df.groupby('Weather_Condition')['Wind_Speed_Knots'].mean().sort_values(ascending=False)
+            st.bar_chart(wind_by_weather)
+
     st.markdown("---")
 
-    st.subheader("Booking Duration Distribution")
+    # ---- BOOKING DURATION DISTRIBUTION ----
+    st.subheader("⏱️ Booking Duration Distribution")
     st.bar_chart(df['Duration'].value_counts())
+
+    st.markdown("---")
+
+    # ---- AI MODEL PERFORMANCE ----
+    st.subheader("🤖 AI Model Performance")
+    if model is not None and features:
+        ai_col1, ai_col2 = st.columns(2)
+        with ai_col1:
+            st.metric("Model Accuracy", f"{accuracy * 100:.1f}%")
+            st.metric("Model Type", "Gradient Boosting Classifier")
+            st.metric("Training Records", f"{len(df):,}")
+
+        with ai_col2:
+            st.markdown("**Feature Importance**")
+            if hasattr(model, 'feature_importances_'):
+                importance_df = pd.DataFrame({
+                    'Feature': features,
+                    'Importance': model.feature_importances_
+                }).sort_values('Importance', ascending=False)
+                st.dataframe(importance_df, use_container_width=True, hide_index=True)
+    else:
+        st.warning("AI model not available.")
 
 
 # ============================================================
 # FOOTER
 # ============================================================
 st.markdown("---")
-st.caption(f"🏗️ Equipment Booking AI v2.0 | Shipyard Operations | {datetime.now().strftime('%Y')}")
+st.caption(f"⚙️ EQUIPIX v2.0 — Yard Equipment Booking System | AI Priority Scoring | {datetime.now().strftime('%Y')}")
 
