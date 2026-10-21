@@ -29,7 +29,7 @@ st.markdown("""
     .main-header {
         font-size: 2.2rem;
         font-weight: 700;
-        color: #0C2340;
+        color: #0098A6;
         text-align: center;
         margin-bottom: 0.3rem;
         letter-spacing: 0.5px;
